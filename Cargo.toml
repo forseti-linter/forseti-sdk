@@ -2,5 +2,12 @@
 name = "forseti-sdk"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "Forseti SDK (Rust) — core types, linter+engine helpers, and ruleset API"
+repository = "https://example.com/forseti/sdk"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
