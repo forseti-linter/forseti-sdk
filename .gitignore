@@ -21,8 +21,8 @@ target
 #.idea/
 
 # Added by cargo
-
 /target
+.cargo/config.toml
 
 # Ignore IDE files
 .vscode
