@@ -43,11 +43,8 @@ impl EngineServer {
     }
 
     pub fn run_stdio(&mut self) -> anyhow::Result<()> {
-        loop {
-            let msg = match read_line_value() {
-                Ok(v) => v,
-                Err(_) => break, // stdin closed
-            };
+        while let Ok(v) = read_line_value() {
+            let msg = v;
             let typ = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
             let id = msg
                 .get("id")
