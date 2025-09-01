@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
+
+pub use crate::config::{
+    Config, ConfigError, EngineCfg, LinterCfg, LogLevel, OutputFormat, RulesetCfg,
+};
 
 pub const PROTOCOL_VERSION: u8 = 1;
 
@@ -38,6 +43,15 @@ impl<T> Envelope<T> {
         Self {
             v: PROTOCOL_VERSION,
             kind: Kind::Res,
+            typ: typ.to_string(),
+            id: Some(id.into()),
+            payload: Some(payload),
+        }
+    }
+    pub fn req(typ: &str, id: impl Into<String>, payload: T) -> Self {
+        Self {
+            v: PROTOCOL_VERSION,
+            kind: Kind::Req,
             typ: typ.to_string(),
             id: Some(id.into()),
             payload: Some(payload),
@@ -172,5 +186,76 @@ impl LineIndex {
             start: self.to_pos(s),
             end: self.to_pos(e),
         }
+    }
+}
+
+/// Engine capabilities and metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineCapabilities {
+    pub engine_id: String,
+    pub version: String,
+    pub file_patterns: Vec<String>,
+    pub max_file_size: Option<u64>,
+}
+
+/// File preprocessing context from engine
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreprocessingContext {
+    pub engine_id: String,
+    pub files: Vec<FileContext>,
+    pub global_context: HashMap<String, Value>, // Cross-file context
+}
+
+/// Context for a single file after preprocessing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileContext {
+    pub uri: String,
+    pub content: String,
+    pub language: Option<String>,
+    pub context: HashMap<String, Value>, // AST, symbols, etc.
+}
+
+/// Ruleset execution result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RulesetResult {
+    pub ruleset_id: String,
+    pub engine_id: String,
+    pub diagnostics: Vec<Diagnostic>,
+    pub execution_time_ms: u64,
+    pub files_processed: usize,
+}
+
+/// Aggregated linting results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LintResults {
+    pub results: Vec<RulesetResult>,
+    pub total_files: usize,
+    pub total_diagnostics: usize,
+    pub execution_time_ms: u64,
+    pub summary: ResultSummary,
+}
+
+/// Summary of linting results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResultSummary {
+    pub errors: usize,
+    pub warnings: usize,
+    pub info: usize,
+    pub engines_used: Vec<String>,
+    pub rulesets_used: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct SharedConfig(pub std::sync::Arc<Config>);
+
+impl SharedConfig {
+    /// Stable borrow tied to &self (no temporaries).
+    pub fn get(&self) -> &Config {
+        &self.0
+    }
+
+    /// If you really need to clone the Arc.
+    pub fn clone_arc(&self) -> std::sync::Arc<Config> {
+        self.0.clone()
     }
 }

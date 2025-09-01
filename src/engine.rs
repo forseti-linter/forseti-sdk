@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize}; // <— add this
 use serde_json::{Value, json};
 
 use crate::core::{Diagnostic, Envelope, Ndjson, read_line_value};
+use crate::core::{EngineCapabilities, EngineCfg, PreprocessingContext, SharedConfig};
 use crate::ruleset::Ruleset;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)] // <— add Serialize, Deserialize
@@ -16,6 +17,12 @@ pub struct EngineConfig {
 pub trait EngineOptions: Send + Sync {
     fn get_default_config(&self) -> EngineConfig;
     fn load_ruleset(&self, id: &str) -> anyhow::Result<Ruleset>;
+
+    /// Get engine capabilities (file patterns, version, etc.)
+    fn get_capabilities(&self) -> EngineCapabilities;
+
+    /// Preprocess files and return context for rulesets
+    fn preprocess_files(&self, file_uris: &[String]) -> anyhow::Result<PreprocessingContext>;
 }
 
 pub struct EngineServer {
@@ -57,6 +64,10 @@ impl EngineServer {
                 }
                 "shutdown" => self.on_shutdown(&id)?,
                 "getDefaultConfig" => self.on_get_default_config(&id)?,
+                "getCapabilities" => self.on_get_capabilities(&id)?,
+                "preprocessFiles" => {
+                    self.on_preprocess_files(&id, msg.get("payload").cloned().unwrap_or(json!({})))?
+                }
                 "analyzeFile" => {
                     self.on_analyze_file(&id, msg.get("payload").cloned().unwrap_or(json!({})))?
                 }
@@ -144,6 +155,46 @@ impl EngineServer {
         Ok(())
     }
 
+    fn on_get_capabilities(&mut self, id: &str) -> anyhow::Result<()> {
+        let capabilities = self.opts.get_capabilities();
+        self.send(&Envelope::res(
+            "getCapabilities",
+            id.to_string(),
+            serde_json::to_value(capabilities)?,
+        ));
+        Ok(())
+    }
+
+    fn on_preprocess_files(&mut self, id: &str, payload: Value) -> anyhow::Result<()> {
+        let file_uris: Vec<String> = payload
+            .get("fileUris")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        match self.opts.preprocess_files(&file_uris) {
+            Ok(context) => {
+                self.send(&Envelope::res(
+                    "preprocessFiles",
+                    id.to_string(),
+                    serde_json::to_value(context)?,
+                ));
+            }
+            Err(e) => {
+                self.send(&Envelope::res(
+                    "preprocessFiles",
+                    id.to_string(),
+                    json!({"ok": false, "error": e.to_string()}),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn on_analyze_file(&mut self, id: &str, payload: Value) -> anyhow::Result<()> {
         if !self.initialized {
             self.send(&Envelope::res(
@@ -195,4 +246,10 @@ pub fn merge_engine_config(defaults: &EngineConfig, user: &EngineConfig) -> Engi
         enabled,
         rulesets: Some(rulesets),
     }
+}
+
+pub fn enabled_engines(
+    cfg: &SharedConfig,
+) -> impl Iterator<Item = (&String, &EngineCfg)> {
+    cfg.get().engine.iter().filter(|(_, e)| e.enabled)
 }
