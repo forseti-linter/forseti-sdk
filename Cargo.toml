@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "Forseti SDK (Rust) — core types, linter+engine helpers, and ruleset API"
-repository = "https://example.com/forseti/sdk"
+repository = "https://github.com/forseti-linter/forseti-sdk/"
+authors = ["Marc Seiler <digitalfiz@proton.me>"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

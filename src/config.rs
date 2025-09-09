@@ -67,21 +67,25 @@ impl Config {
     pub fn merge_env_overrides<F: Fn(&str) -> Option<String>>(&mut self, get: F) {
         // ---- LINTER ----
         if let Some(v) = get("FORSETI_LINTER_LOG_LEVEL")
-            && let Ok(parsed) = parse_log_level(&v) {
-                self.linter.log_level = parsed;
-            }
+            && let Ok(parsed) = parse_log_level(&v)
+        {
+            self.linter.log_level = parsed;
+        }
         if let Some(v) = get("FORSETI_LINTER_OUTPUT_FORMAT")
-            && let Ok(parsed) = parse_output_format(&v) {
-                self.linter.output_format = parsed;
-            }
+            && let Ok(parsed) = parse_output_format(&v)
+        {
+            self.linter.output_format = parsed;
+        }
         if let Some(v) = get("FORSETI_LINTER_PARALLELISM")
-            && let Ok(n) = v.parse::<u16>() {
-                self.linter.parallelism = n;
-            }
+            && let Ok(n) = v.parse::<u16>()
+        {
+            self.linter.parallelism = n;
+        }
         if let Some(v) = get("FORSETI_LINTER_FAIL_ON_ERROR")
-            && let Ok(b) = parse_bool(&v) {
-                self.linter.fail_on_error = b;
-            }
+            && let Ok(b) = parse_bool(&v)
+        {
+            self.linter.fail_on_error = b;
+        }
 
         // ---- ENGINES ----
         if let Some(ids) = get("FORSETI_ENGINE_IDS") {
@@ -96,17 +100,19 @@ impl Config {
             let k_enabled = format!("FORSETI_ENGINE_{}_ENABLED", upper(&id));
             if let Some(v) = get(&k_enabled)
                 && let Ok(b) = parse_bool(&v)
-                && let Some(cfg) = self.engine.get_mut(&id) {
-                    cfg.enabled = b;
-                }
+                && let Some(cfg) = self.engine.get_mut(&id)
+            {
+                cfg.enabled = b;
+            }
 
             let k_cfg = format!("FORSETI_ENGINE_{}_CONFIG_JSON", upper(&id));
             if let Some(v) = get(&k_cfg)
                 && let Ok(json) = serde_json::from_str::<serde_json::Value>(&v)
                 && let Some(obj) = json.as_object()
-                && let Some(engine) = self.engine.get_mut(&id) {
-                    merge_json_object_into_toml_table(obj, &mut engine.config);
-                }
+                && let Some(engine) = self.engine.get_mut(&id)
+            {
+                merge_json_object_into_toml_table(obj, &mut engine.config);
+            }
         }
 
         // ---- RULESETS ----
@@ -121,17 +127,19 @@ impl Config {
             let k_enabled = format!("FORSETI_RULESET_{}_ENABLED", upper(&id));
             if let Some(v) = get(&k_enabled)
                 && let Ok(b) = parse_bool(&v)
-                && let Some(cfg) = self.ruleset.get_mut(&id) {
-                    cfg.enabled = b;
-                }
+                && let Some(cfg) = self.ruleset.get_mut(&id)
+            {
+                cfg.enabled = b;
+            }
 
             let k_cfg = format!("FORSETI_RULESET_{}_CONFIG_JSON", upper(&id));
             if let Some(v) = get(&k_cfg)
                 && let Ok(json) = serde_json::from_str::<serde_json::Value>(&v)
                 && let Some(obj) = json.as_object()
-                && let Some(rs) = self.ruleset.get_mut(&id) {
-                    merge_json_object_into_toml_table(obj, &mut rs.config);
-                }
+                && let Some(rs) = self.ruleset.get_mut(&id)
+            {
+                merge_json_object_into_toml_table(obj, &mut rs.config);
+            }
         }
     }
 }
@@ -266,6 +274,9 @@ pub struct EngineCfg {
     /// Optional git repository URL to clone and build from source
     #[serde(default)]
     pub git: Option<String>,
+    /// Optional local path to binary executable
+    #[serde(default)]
+    pub path: Option<String>,
 }
 fn default_enabled() -> bool {
     true
@@ -283,6 +294,9 @@ pub struct RulesetCfg {
     /// Optional git repository URL to clone and build from source
     #[serde(default)]
     pub git: Option<String>,
+    /// Optional local path to binary executable
+    #[serde(default)]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]

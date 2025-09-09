@@ -60,12 +60,17 @@ impl EngineInfo {
             .ok_or_else(|| anyhow!("Invalid binary filename"))?
             .to_string();
 
-        // Remove forseti_ prefix if present
-        let id = if id.starts_with("forseti_") {
+        // Remove forseti_ prefix if present, then remove engine_ prefix for engines
+        let mut id = if id.starts_with("forseti_") {
             id.strip_prefix("forseti_").unwrap_or(&id).to_string()
         } else {
             id
         };
+
+        // For engine binaries, also remove engine_ prefix
+        if id.starts_with("engine_") {
+            id = id.strip_prefix("engine_").unwrap_or(&id).to_string();
+        }
 
         Ok(Self {
             id,
@@ -264,9 +269,10 @@ impl EngineManager {
 
                 // Match engine binaries (forseti_engine_*)
                 if filename.starts_with("forseti_engine_")
-                    && let Ok(info) = EngineInfo::from_binary(binary_path) {
-                        engines.push(info);
-                    }
+                    && let Ok(info) = EngineInfo::from_binary(binary_path)
+                {
+                    engines.push(info);
+                }
             }
         }
 

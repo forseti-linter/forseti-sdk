@@ -248,8 +248,6 @@ pub fn merge_engine_config(defaults: &EngineConfig, user: &EngineConfig) -> Engi
     }
 }
 
-pub fn enabled_engines(
-    cfg: &SharedConfig,
-) -> impl Iterator<Item = (&String, &EngineCfg)> {
+pub fn enabled_engines(cfg: &SharedConfig) -> impl Iterator<Item = (&String, &EngineCfg)> {
     cfg.get().engine.iter().filter(|(_, e)| e.enabled)
 }

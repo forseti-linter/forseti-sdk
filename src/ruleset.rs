@@ -101,8 +101,6 @@ fn load_file_content(uri: &str) -> Result<String, std::io::Error> {
     std::fs::read_to_string(path)
 }
 
-pub fn enabled_rulesets(
-    cfg: &SharedConfig,
-) -> impl Iterator<Item = (&String, &RulesetCfg)> {
+pub fn enabled_rulesets(cfg: &SharedConfig) -> impl Iterator<Item = (&String, &RulesetCfg)> {
     cfg.get().ruleset.iter().filter(|(_, r)| r.enabled)
 }
