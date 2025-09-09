@@ -1,10 +1,11 @@
 [package]
 name = "forseti_sdk"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2024"
-license = "MIT"
+license-file = "LICENSE"
 description = "Forseti SDK (Rust) — core types, linter+engine helpers, and ruleset API"
 repository = "https://github.com/forseti-linter/forseti-sdk/"
+readme = "README.md"
 authors = ["Marc Seiler <digitalfiz@proton.me>"]
 
 [dependencies]
