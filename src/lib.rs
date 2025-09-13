@@ -1,6 +1,4 @@
-// Public surface: four modules.
+// Public surface: three modules.
 pub mod config;
 pub mod core;
-pub mod engine;
-pub mod linter;
 pub mod ruleset;

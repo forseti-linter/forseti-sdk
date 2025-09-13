@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 
 pub use crate::config::{
-    Config, ConfigError, EngineCfg, LinterCfg, LogLevel, OutputFormat, RulesetCfg,
+    Config, ConfigError, LinterCfg, LogLevel, OutputFormat, RulesetCfg,
 };
 
 
@@ -204,23 +204,69 @@ pub struct RulesetInfo {
     pub rules: Vec<RuleInfo>,
 }
 
-/// Engine capabilities and metadata
+/// Configuration setting definition for rulesets
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineCapabilities {
-    pub engine_id: String,
+pub struct ConfigSetting {
+    /// Setting name/key
+    pub name: String,
+    /// Human-readable description
+    pub description: String,
+    /// Data type of the setting
+    #[serde(rename = "type")]
+    pub setting_type: ConfigType,
+    /// Default value
+    pub default: Value,
+    /// Whether this setting is required
+    #[serde(default)]
+    pub required: bool,
+    /// Allowed values (for enum types)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_values: Option<Vec<Value>>,
+    /// Minimum value (for numeric types)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    /// Maximum value (for numeric types)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+}
+
+/// Data types for configuration settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConfigType {
+    String,
+    Number,
+    Integer,
+    Boolean,
+    Array,
+    Object,
+    /// One of a set of predefined values
+    Enum,
+}
+
+/// Ruleset capabilities and metadata (replaces EngineCapabilities)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RulesetCapabilities {
+    pub ruleset_id: String,
     pub version: String,
     pub file_patterns: Vec<String>,
     pub max_file_size: Option<u64>,
     /// Comment prefixes used for annotations (e.g., ["//", "#", "/*"])
     pub annotation_prefixes: Vec<String>,
-    /// Available rulesets and their rules
-    pub rulesets: Vec<RulesetInfo>,
+    /// Rules available in this ruleset
+    pub rules: Vec<RuleInfo>,
+    /// Default configuration for rules
+    pub default_config: HashMap<String, Value>,
+    /// Configuration settings that can be customized
+    #[serde(default)]
+    pub config_settings: Vec<ConfigSetting>,
 }
 
-/// File preprocessing context from engine
+
+/// File preprocessing context from ruleset
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreprocessingContext {
-    pub engine_id: String,
+    pub ruleset_id: String,
     pub files: Vec<FileContext>,
     pub global_context: HashMap<String, Value>, // Cross-file context
 }
@@ -238,7 +284,6 @@ pub struct FileContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RulesetResult {
     pub ruleset_id: String,
-    pub engine_id: String,
     pub diagnostics: Vec<Diagnostic>,
     pub execution_time_ms: u64,
     pub files_processed: usize,
@@ -260,7 +305,6 @@ pub struct ResultSummary {
     pub errors: usize,
     pub warnings: usize,
     pub info: usize,
-    pub engines_used: Vec<String>,
     pub rulesets_used: Vec<String>,
 }
 

@@ -19,17 +19,14 @@ pub struct Config {
     #[serde(default)]
     pub linter: LinterCfg,
     #[serde(default)]
-    pub engine: HashMap<String, EngineCfg>,
-    #[serde(default)]
     pub ruleset: HashMap<String, RulesetCfg>,
 }
 
 impl Config {
-    /// Build a default config (no engines/rulesets, default linter).
+    /// Build a default config (no rulesets, default linter).
     pub fn from_default() -> Self {
         Self {
             linter: LinterCfg::default(),
-            engine: HashMap::new(),
             ruleset: HashMap::new(),
         }
     }
@@ -87,33 +84,6 @@ impl Config {
             self.linter.fail_on_error = b;
         }
 
-        // ---- ENGINES ----
-        if let Some(ids) = get("FORSETI_ENGINE_IDS") {
-            for id in parse_csv_ids(&ids) {
-                self.engine.entry(id).or_default();
-            }
-        }
-
-        // For existing + newly created engines, apply per-ID overrides
-        let engine_keys: Vec<String> = self.engine.keys().cloned().collect();
-        for id in engine_keys {
-            let k_enabled = format!("FORSETI_ENGINE_{}_ENABLED", upper(&id));
-            if let Some(v) = get(&k_enabled)
-                && let Ok(b) = parse_bool(&v)
-                && let Some(cfg) = self.engine.get_mut(&id)
-            {
-                cfg.enabled = b;
-            }
-
-            let k_cfg = format!("FORSETI_ENGINE_{}_CONFIG_JSON", upper(&id));
-            if let Some(v) = get(&k_cfg)
-                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&v)
-                && let Some(obj) = json.as_object()
-                && let Some(engine) = self.engine.get_mut(&id)
-            {
-                merge_json_object_into_toml_table(obj, &mut engine.config);
-            }
-        }
 
         // ---- RULESETS ----
         if let Some(ids) = get("FORSETI_RULESET_IDS") {
@@ -262,22 +232,6 @@ impl Default for LinterCfg {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct EngineCfg {
-    /// Defaults to true when omitted
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
-    /// Opaque, free-form table; defaults to {}
-    #[serde(default)]
-    pub config: toml::value::Table,
-    /// Optional git repository URL to clone and build from source
-    #[serde(default)]
-    pub git: Option<String>,
-    /// Optional local path to binary executable
-    #[serde(default)]
-    pub path: Option<String>,
-}
 fn default_enabled() -> bool {
     true
 }
