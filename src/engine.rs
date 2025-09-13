@@ -23,6 +23,9 @@ pub trait EngineOptions: Send + Sync {
 
     /// Preprocess files and return context for rulesets
     fn preprocess_files(&self, file_uris: &[String]) -> anyhow::Result<PreprocessingContext>;
+
+    /// List all available ruleset IDs that this engine can load
+    fn list_rulesets(&self) -> Vec<String>;
 }
 
 pub struct EngineServer {
@@ -156,7 +159,16 @@ impl EngineServer {
     }
 
     fn on_get_capabilities(&mut self, id: &str) -> anyhow::Result<()> {
-        let capabilities = self.opts.get_capabilities();
+        let mut capabilities = self.opts.get_capabilities();
+
+        // Collect rule information from all available rulesets
+        let ruleset_ids = self.opts.list_rulesets();
+        capabilities.rulesets = ruleset_ids.into_iter()
+            .filter_map(|rs_id| {
+                self.opts.load_ruleset(&rs_id).ok().map(|rs| rs.info())
+            })
+            .collect();
+
         self.send(&Envelope::res(
             "getCapabilities",
             id.to_string(),

@@ -1,4 +1,4 @@
-use crate::core::{Annotation, AnnotationParser, Diagnostic, PreprocessingContext};
+use crate::core::{Annotation, AnnotationParser, Diagnostic, PreprocessingContext, RuleInfo, RulesetInfo};
 use crate::core::{RulesetCfg, SharedConfig};
 use serde_json::Value;
 
@@ -34,6 +34,7 @@ impl<'a> RuleContext<'a> {
 
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
+    fn description(&self) -> &'static str;
     fn check(&self, ctx: &mut RuleContext);
 }
 
@@ -51,6 +52,17 @@ impl Ruleset {
     pub fn with_rule(mut self, rule: Box<dyn Rule>) -> Self {
         self.rules.push(rule);
         self
+    }
+
+    /// Generate information about this ruleset and its rules
+    pub fn info(&self) -> RulesetInfo {
+        RulesetInfo {
+            id: self.id.clone(),
+            rules: self.rules.iter().map(|rule| RuleInfo {
+                id: rule.id().to_string(),
+                description: rule.description().to_string(),
+            }).collect(),
+        }
     }
 }
 

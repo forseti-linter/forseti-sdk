@@ -190,6 +190,20 @@ impl LineIndex {
     }
 }
 
+/// Information about a single rule
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleInfo {
+    pub id: String,
+    pub description: String,
+}
+
+/// Information about a ruleset and its rules
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RulesetInfo {
+    pub id: String,
+    pub rules: Vec<RuleInfo>,
+}
+
 /// Engine capabilities and metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineCapabilities {
@@ -199,6 +213,8 @@ pub struct EngineCapabilities {
     pub max_file_size: Option<u64>,
     /// Comment prefixes used for annotations (e.g., ["//", "#", "/*"])
     pub annotation_prefixes: Vec<String>,
+    /// Available rulesets and their rules
+    pub rulesets: Vec<RulesetInfo>,
 }
 
 /// File preprocessing context from engine
