@@ -1,6 +1,6 @@
 [package]
 name = "forseti_sdk"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license-file = "LICENSE"
 description = "Forseti SDK (Rust) — core types, linter+engine helpers, and ruleset API"
