@@ -4,9 +4,9 @@ use std::io::{self};
 use serde::{Deserialize, Serialize}; // <— add this
 use serde_json::{Value, json};
 
-use crate::core::{Diagnostic, Envelope, Ndjson, read_line_value};
+use crate::core::{AnnotationParser, Diagnostic, Envelope, Ndjson, read_line_value};
 use crate::core::{EngineCapabilities, EngineCfg, PreprocessingContext, SharedConfig};
-use crate::ruleset::Ruleset;
+use crate::ruleset::{Ruleset, run_ruleset_with_annotations};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)] // <— add Serialize, Deserialize
 pub struct EngineConfig {
@@ -215,10 +215,31 @@ impl EngineServer {
             .unwrap_or("")
             .to_string();
 
+        // Get annotation prefixes from engine capabilities
+        let capabilities = self.opts.get_capabilities();
+        let annotation_parser = if !capabilities.annotation_prefixes.is_empty() {
+            Some(AnnotationParser::new(capabilities.annotation_prefixes))
+        } else {
+            None
+        };
+
+        // Parse annotations from content
+        let annotations = if let Some(ref parser) = annotation_parser {
+            parser.parse_annotations(&content)
+        } else {
+            Vec::new()
+        };
+
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         for loaded in self.loaded.values() {
-            let diags =
-                crate::ruleset::run_ruleset(&uri, &content, &loaded.ruleset, &loaded.config);
+            let diags = run_ruleset_with_annotations(
+                &uri,
+                &content,
+                &loaded.ruleset,
+                &loaded.config,
+                &annotations,
+                annotation_parser.as_ref(),
+            );
             diagnostics.extend(diags);
         }
         self.send(&Envelope::event(

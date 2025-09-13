@@ -7,6 +7,7 @@ pub use crate::config::{
     Config, ConfigError, EngineCfg, LinterCfg, LogLevel, OutputFormat, RulesetCfg,
 };
 
+
 pub const PROTOCOL_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +197,8 @@ pub struct EngineCapabilities {
     pub version: String,
     pub file_patterns: Vec<String>,
     pub max_file_size: Option<u64>,
+    /// Comment prefixes used for annotations (e.g., ["//", "#", "/*"])
+    pub annotation_prefixes: Vec<String>,
 }
 
 /// File preprocessing context from engine
@@ -243,6 +246,131 @@ pub struct ResultSummary {
     pub info: usize,
     pub engines_used: Vec<String>,
     pub rulesets_used: Vec<String>,
+}
+
+/// Annotation scope for ignore directives
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnnotationScope {
+    /// Ignore the next line only
+    NextLine,
+    /// Ignore the entire file
+    File,
+}
+
+/// Parsed annotation directive
+#[derive(Debug, Clone)]
+pub struct Annotation {
+    pub scope: AnnotationScope,
+    pub rule_ids: Vec<String>, // Empty means all rules
+    pub line: u32,             // Line where annotation appears (0-based)
+}
+
+/// Utility for parsing annotations from text
+pub struct AnnotationParser {
+    prefixes: Vec<String>,
+}
+
+impl AnnotationParser {
+    pub fn new(prefixes: Vec<String>) -> Self {
+        Self { prefixes }
+    }
+
+    /// Parse all annotations from text content
+    pub fn parse_annotations(&self, text: &str) -> Vec<Annotation> {
+        let mut annotations = Vec::new();
+
+        for (line_num, line) in text.lines().enumerate() {
+            if let Some(annotation) = self.parse_line_annotation(line, line_num as u32) {
+                annotations.push(annotation);
+            }
+        }
+
+        annotations
+    }
+
+    /// Parse a single line for annotation directives
+    fn parse_line_annotation(&self, line: &str, line_num: u32) -> Option<Annotation> {
+        let trimmed = line.trim();
+
+        // Check if line starts with any of the comment prefixes
+        let comment_start = self
+            .prefixes
+            .iter()
+            .find(|prefix| trimmed.starts_with(*prefix))?;
+
+        // Extract comment content after the prefix
+        let comment_content = trimmed.strip_prefix(comment_start)?.trim();
+
+        // Look for forseti-ignore patterns
+        if let Some(ignore_content) = comment_content.strip_prefix("forseti-ignore") {
+            let remaining = ignore_content.trim();
+
+            // Check for scope indicators
+            let (scope, rule_part) = if remaining.starts_with("-file") {
+                (
+                    AnnotationScope::File,
+                    remaining.strip_prefix("-file").unwrap_or("").trim(),
+                )
+            } else if remaining.starts_with("-next-line") {
+                (
+                    AnnotationScope::NextLine,
+                    remaining.strip_prefix("-next-line").unwrap_or("").trim(),
+                )
+            } else if remaining.is_empty() {
+                // Default to next-line if no scope specified
+                (AnnotationScope::NextLine, "")
+            } else {
+                // No scope prefix, default to next-line and treat as rule list
+                (AnnotationScope::NextLine, remaining)
+            };
+
+            // Parse rule IDs (comma-separated)
+            let rule_ids = if rule_part.is_empty() {
+                Vec::new() // Empty means ignore all rules
+            } else {
+                rule_part
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            };
+
+            return Some(Annotation {
+                scope,
+                rule_ids,
+                line: line_num,
+            });
+        }
+
+        None
+    }
+
+    /// Check if a rule should be ignored for a specific line
+    pub fn should_ignore_rule(&self, annotations: &[Annotation], rule_id: &str, line: u32) -> bool {
+        for annotation in annotations {
+            match annotation.scope {
+                AnnotationScope::File => {
+                    // File-level ignores apply to all lines
+                    if annotation.rule_ids.is_empty()
+                        || annotation.rule_ids.contains(&rule_id.to_string())
+                    {
+                        return true;
+                    }
+                }
+                AnnotationScope::NextLine => {
+                    // Next-line ignores apply only to the line immediately following the annotation
+                    if line == annotation.line + 1 {
+                        if annotation.rule_ids.is_empty()
+                            || annotation.rule_ids.contains(&rule_id.to_string())
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 #[derive(Clone)]

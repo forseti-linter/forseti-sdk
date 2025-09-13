@@ -1,4 +1,4 @@
-use crate::core::{Diagnostic, PreprocessingContext};
+use crate::core::{Annotation, AnnotationParser, Diagnostic, PreprocessingContext};
 use crate::core::{RulesetCfg, SharedConfig};
 use serde_json::Value;
 
@@ -7,10 +7,28 @@ pub struct RuleContext<'a> {
     pub text: &'a str,
     pub options: &'a Value,
     pub diagnostics: Vec<Diagnostic>,
+    pub annotations: &'a [Annotation],
+    pub annotation_parser: Option<&'a AnnotationParser>,
 }
 impl<'a> RuleContext<'a> {
     pub fn report(&mut self, d: Diagnostic) {
+        // Check if this diagnostic should be ignored based on annotations
+        if let Some(parser) = self.annotation_parser {
+            let line = d.range.start.line;
+            if parser.should_ignore_rule(self.annotations, &d.rule_id, line) {
+                return; // Skip this diagnostic
+            }
+        }
         self.diagnostics.push(d);
+    }
+
+    /// Check if a specific rule should be ignored for a given line
+    pub fn should_ignore_rule(&self, rule_id: &str, line: u32) -> bool {
+        if let Some(parser) = self.annotation_parser {
+            parser.should_ignore_rule(self.annotations, rule_id, line)
+        } else {
+            false
+        }
     }
 }
 
@@ -42,6 +60,18 @@ pub fn run_ruleset(
     rs: &Ruleset,
     options: &std::collections::HashMap<String, Value>,
 ) -> Vec<Diagnostic> {
+    run_ruleset_with_annotations(uri, text, rs, options, &[], None)
+}
+
+/// Run ruleset with annotation support
+pub fn run_ruleset_with_annotations(
+    uri: &str,
+    text: &str,
+    rs: &Ruleset,
+    options: &std::collections::HashMap<String, Value>,
+    annotations: &[Annotation],
+    annotation_parser: Option<&AnnotationParser>,
+) -> Vec<Diagnostic> {
     let mut all = Vec::new();
     for r in &rs.rules {
         if let Some(opts) = options.get(r.id()) {
@@ -50,6 +80,8 @@ pub fn run_ruleset(
                 text,
                 options: opts,
                 diagnostics: vec![],
+                annotations,
+                annotation_parser,
             };
             r.check(&mut ctx);
             all.extend(ctx.diagnostics);
@@ -64,6 +96,16 @@ pub fn run_ruleset_with_context(
     preprocessing_context: &PreprocessingContext,
     options: &std::collections::HashMap<String, Value>,
 ) -> Vec<Diagnostic> {
+    run_ruleset_with_context_and_annotations(rs, preprocessing_context, options, None)
+}
+
+/// Run a ruleset with preprocessing context and annotation support
+pub fn run_ruleset_with_context_and_annotations(
+    rs: &Ruleset,
+    preprocessing_context: &PreprocessingContext,
+    options: &std::collections::HashMap<String, Value>,
+    annotation_parser: Option<&AnnotationParser>,
+) -> Vec<Diagnostic> {
     let mut all = Vec::new();
 
     for file_context in &preprocessing_context.files {
@@ -74,6 +116,13 @@ pub fn run_ruleset_with_context(
             file_context.content.clone()
         };
 
+        // Parse annotations if parser is provided
+        let annotations = if let Some(parser) = annotation_parser {
+            parser.parse_annotations(&content)
+        } else {
+            Vec::new()
+        };
+
         for rule in &rs.rules {
             if let Some(opts) = options.get(rule.id()) {
                 let mut ctx = RuleContext {
@@ -81,6 +130,8 @@ pub fn run_ruleset_with_context(
                     text: &content,
                     options: opts,
                     diagnostics: vec![],
+                    annotations: &annotations,
+                    annotation_parser,
                 };
                 rule.check(&mut ctx);
                 all.extend(ctx.diagnostics);
